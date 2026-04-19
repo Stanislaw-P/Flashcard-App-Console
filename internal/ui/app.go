@@ -28,9 +28,7 @@ func NewApp(rep repository.CardRepository) *App {
 }
 
 func (app *App) Run() {
-	fmt.Println("=== Flashcard App ===")
-	fmt.Println("Commands: add, list, train, stats, exit")
-	fmt.Println()
+	app.help()
 
 	for app.running {
 		fmt.Print("> ")
@@ -50,8 +48,12 @@ func (app *App) handleCommand(cmd string) {
 		app.listCards()
 	case "add":
 		app.add()
-	case "full", "full training":
+	case "train", "full training":
 		app.startFullTraining()
+	case "train wr", "train wrong cards":
+		app.startWrongCardTraining()
+	case "help":
+		app.help()
 	default:
 		if cmd != "" {
 			fmt.Printf("Неизвестная команда: %s\n", cmd)
@@ -100,51 +102,108 @@ func (app *App) add() {
 }
 
 func (app *App) startFullTraining() {
-	fmt.Println("--- Тренировка всех существующих слов ---")
+	app.trainCards(app.cards, "Тренировка всех существующих слов")
+}
+
+func (app *App) startWrongCardTraining() {
+	cardsWithWrongs, err := app.repository.GetWithWrongs()
+
+	if err != nil {
+		fmt.Printf("Ошибка получения карточек: %v\n", err)
+		return
+	}
+
+	if len(cardsWithWrongs) == 0 {
+		fmt.Println("⚠️ Нет карточек, в которых вы ошибались! Сначала потренируйтесь на всех карточках.")
+		return
+	}
+
+	app.trainCards(cardsWithWrongs, "Тренировка ошибок")
+}
+
+func (app *App) trainCards(cards []models.Card, trainingName string) {
+	fmt.Printf("--- %s ---\n", trainingName)
 	fmt.Println("Введите 'back' для выхода в главное меню")
 	fmt.Println()
 
-	currentCount := 0
-	cardsCount := len(app.cards)
+	cardsCount := len(cards)
+	if cardsCount == 0 {
+		fmt.Printf("⚠️ Нет карточек для тренировки!\n")
+		return
+	}
+
+	// Создаем копию и перемешиваем
+	trainingCards := make([]models.Card, cardsCount)
+	copy(trainingCards, cards)
+
+	rand.Shuffle(cardsCount, func(i, j int) {
+		trainingCards[i], trainingCards[j] = trainingCards[j], trainingCards[i]
+	})
+
 	score := 0
 
-	for {
-		// Проверяем не закончили ли слова
-		if currentCount == cardsCount {
-			fmt.Println("- ⚠️ Нет карточек для тренировки! Добавьте карточки -")
-			break
-		}
-
-		rndInd := rand.Intn(cardsCount)
-		rndCard := app.cards[rndInd]
-
-		currentCount++ // Номер текущего шага
-
-		fmt.Printf("Слово %d/%d: %s\n", currentCount, cardsCount, rndCard.Word)
-		fmt.Print("Введите перевод (или 'back' для выхода в главное меню) -> ")
+	for i, card := range trainingCards {
+		fmt.Printf("Слово %d/%d: %s\n", i+1, len(trainingCards), card.Word)
+		fmt.Print("Введите перевод (или 'back' для выхода) -> ")
 
 		answer, _ := app.reader.ReadString('\n')
 		answer = strings.TrimSpace(strings.ToLower(answer))
 
 		if answer == "back" {
-			break
+			fmt.Println("Тренировка прервана.")
+			app.repository.SaveAll(app.cards)
+			return
 		}
 
-		if answer == rndCard.Translation {
-			fmt.Println("- ✅ Правильно! Выбираю следующее слово... -")
-			fmt.Println()
-			score++
-			app.cards[rndInd].CorrectCount++
-		} else {
-			fmt.Printf("- ❌ Неправильно! Правильный ответ: %s\n-", rndCard.Translation)
-			fmt.Println()
-			app.cards[rndInd].WrongCount++
+		// Находим оригинальную карточку
+		originalIndex := -1
+		for idx, origCard := range app.cards {
+			if origCard.ID == card.ID {
+				originalIndex = idx
+				break
+			}
 		}
+
+		if originalIndex == -1 {
+			fmt.Println("Ошибка: карточка не найдена")
+			continue
+		}
+
+		if answer == card.Translation {
+			fmt.Println("✅ Правильно!")
+			score++
+			app.cards[originalIndex].CorrectCount++
+
+			if app.cards[originalIndex].WrongCount > 0 {
+				app.cards[originalIndex].WrongCount--
+			}
+		} else {
+			fmt.Printf("❌ Неправильно! Правильный ответ: %s\n", card.Translation)
+			app.cards[originalIndex].WrongCount++
+		}
+		fmt.Println()
 	}
 
 	// Сохраняем обновленную статистику
-	app.repository.SaveAll(app.cards)
+	err := app.repository.SaveAll(app.cards)
+	if err != nil {
+		fmt.Printf("Ошибка сохранения: %v\n", err)
+	}
 
 	fmt.Printf("\n📊 Результат: %d/%d правильных ответов (%.1f%%)\n",
-		score, cardsCount, float64(score)/float64(cardsCount)*100)
+		score, len(trainingCards), float64(score)/float64(len(trainingCards))*100)
+}
+
+func (app *App) help() {
+	fmt.Println("=== Flashcard App ===")
+	fmt.Println("Commands:")
+	fmt.Println("help")
+	fmt.Println("add - add a new card")
+	fmt.Println("list - get a list of all cards")
+	fmt.Println("train - start training all cards")
+	fmt.Println("train wr- start training the maps where I made mistakes")
+	fmt.Println("stats - get stats")
+	fmt.Println("exit - exit from app")
+	fmt.Println()
+
 }

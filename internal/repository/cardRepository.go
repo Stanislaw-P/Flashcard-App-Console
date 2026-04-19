@@ -4,5 +4,6 @@ import "flashcard/internal/models"
 
 type CardRepository interface {
 	GetAll() ([]models.Card, error)
+	GetWithWrongs() ([]models.Card, error)
 	SaveAll(cards []models.Card) error
 }
