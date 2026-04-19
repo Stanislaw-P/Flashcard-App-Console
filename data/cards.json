@@ -1,1 +1,1 @@
-[{"id":1,"word":"world","translation":"мир","correctCount":3,"wrongCount":0},{"id":2,"word":"hello","translation":"привет","correctCount":4,"wrongCount":0},{"id":3,"word":"mouse","translation":"мыщь","correctCount":3,"wrongCount":0}]
+[{"id":1,"word":"world","translation":"мир","correctCount":3,"wrongCount":0},{"id":2,"word":"hello","translation":"привет","correctCount":4,"wrongCount":0},{"id":5,"word":"first","translation":"первый","correctCount":0,"wrongCount":0},{"id":6,"word":"mouse","translation":"мышь","correctCount":0,"wrongCount":0}]

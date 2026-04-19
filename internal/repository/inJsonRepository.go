@@ -71,3 +71,52 @@ func (rep *InJsonRepository) SaveAll(cards []models.Card) error {
 
 	return nil
 }
+
+func (rep *InJsonRepository) DeleteById(cardId int) error {
+	cards, err := rep.GetAll()
+	if err != nil {
+		return fmt.Errorf("ошибка удаления: %w", err)
+	}
+
+	idxForDelete := -1
+
+	for i, card := range cards {
+		if card.ID == cardId {
+			idxForDelete = i
+			break
+		}
+	}
+
+	cards = append(cards[:idxForDelete], cards[idxForDelete+1:]...)
+	err = rep.SaveAll(cards)
+
+	if err != nil {
+		return fmt.Errorf("ошибка удаления, измененный список не сохранился: %w", err)
+	}
+	return nil
+}
+
+func (rep *InJsonRepository) Add(card models.Card) error {
+	cards, err := rep.GetAll()
+	if err != nil {
+		return fmt.Errorf("ошибка добавления новой карты: %w", err)
+	}
+
+	cards = append(cards, card)
+
+	err = rep.SaveAll(cards)
+	if err != nil {
+		return fmt.Errorf("ошибка добавления карточки, измененный список не сохранился: %w", err)
+	}
+
+	return nil
+}
+
+func (rep *InJsonRepository) GetIdLastInsert() (int, error) {
+	cards, err := rep.GetAll()
+	if err != nil {
+		return -1, fmt.Errorf("ошибка при получении ID: %w", err)
+	}
+
+	return cards[len(cards)-1].ID, nil
+}

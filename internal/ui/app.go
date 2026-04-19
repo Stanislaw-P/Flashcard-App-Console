@@ -52,6 +52,8 @@ func (app *App) handleCommand(cmd string) {
 		app.startFullTraining()
 	case "train wr", "train wrong cards":
 		app.startWrongCardTraining()
+	case "delete", "remove", "d":
+		app.Delete()
 	case "help":
 		app.help()
 	default:
@@ -69,9 +71,10 @@ func (app *App) listCards() {
 		return
 	}
 
-	for i, card := range app.cards {
+	fmt.Println("ID")
+	for _, card := range app.cards {
 		fmt.Printf("%d. %s -> %s (угадано: %d, ошибок: %d)\n",
-			i+1, card.Word, card.Translation, card.CorrectCount, card.WrongCount)
+			card.ID, card.Word, card.Translation, card.CorrectCount, card.WrongCount)
 	}
 }
 
@@ -86,18 +89,26 @@ func (app *App) add() {
 	trans, _ := app.reader.ReadString('\n')
 	trans = strings.TrimSpace(strings.ToLower(trans))
 
+	nextId, err := app.repository.GetIdLastInsert()
+	if err != nil {
+		fmt.Printf("Ошибка добавления новой карточки: %v\n", err)
+		return
+	}
+
 	newCard := models.Card{
-		ID:          len(app.cards) + 1,
+		ID:          nextId + 1,
 		Word:        word,
 		Translation: trans,
 	}
 
-	app.cards = append(app.cards, newCard)
-
-	err := app.repository.SaveAll(app.cards)
+	err = app.repository.Add(newCard)
 	if err != nil {
 		panic(err)
 	}
+
+	// Сохраняем во временную память обновленный список карт
+	app.cards, _ = app.repository.GetAll()
+
 	fmt.Println("- Карточка сохранена -")
 }
 
@@ -194,6 +205,25 @@ func (app *App) trainCards(cards []models.Card, trainingName string) {
 		score, len(trainingCards), float64(score)/float64(len(trainingCards))*100)
 }
 
+func (app *App) Delete() {
+	fmt.Println("--- Удаление карточки ---")
+	fmt.Print("Введите ID карточки:")
+
+	cardId := 0
+
+	_, err := fmt.Fscan(app.reader, &cardId)
+	if err != nil {
+		fmt.Printf("Ошибка считывания ID карточки: %v\n", err)
+		return
+	}
+
+	app.repository.DeleteById(cardId)
+
+	// Сохраняем во временную память обновленный список карт
+	app.cards, _ = app.repository.GetAll()
+	fmt.Printf("Карточка с ID = %d успешно удалена!\n", cardId)
+}
+
 func (app *App) help() {
 	fmt.Println("=== Flashcard App ===")
 	fmt.Println("Commands:")
@@ -203,7 +233,7 @@ func (app *App) help() {
 	fmt.Println("train - start training all cards")
 	fmt.Println("train wr- start training the maps where I made mistakes")
 	fmt.Println("stats - get stats")
+	fmt.Println("delete - delete a card by ID")
 	fmt.Println("exit - exit from app")
 	fmt.Println()
-
 }
